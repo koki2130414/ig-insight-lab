@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getDb, type Db } from "./db";
 import { LOCAL_USER } from "./seed";
 
@@ -53,6 +54,8 @@ export function newSessionToken() {
 
 /** ログイン済みのユーザーIDを返す。未ログインならログイン画面へ */
 export async function requireUser(): Promise<string> {
+  // ビルド時に静的生成されないよう、リクエスト時の描画であることを先に宣言する
+  await connection();
   if (!authEnabled()) {
     // インターネットに公開される環境では、パスコード無しで開けないようにする
     if (process.env.VERCEL || process.env.REQUIRE_PASSCODE === "1") throw new Error("APP_PASSCODE が未設定のため表示できません。環境変数に APP_PASSCODE を設定してください");
