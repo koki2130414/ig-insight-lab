@@ -13,7 +13,6 @@ export default async function ImportPage() {
   return (
     <>
       <PageHeader title="CSV・JSONの取り込み" sub="ユーザー自身が用意した投稿実績・インサイト・成果データを取り込みます。" />
-      {ctx.dataset === "demo" && <div className="mb-3"><Note t="gold">いまはデモデータ表示中です。取り込むとデモ用アカウントに入ります。実データとして保存するには上部で「実データ」に切り替えてください。</Note></div>}
       <div className="mb-4 grid gap-3 text-[13px] md:grid-cols-3">
         <Note>おすすめの順番: ①投稿 → ②投稿の実績（24h/72h/7d）→ ③アカウント指標 → ④問い合わせ・購入。実績は投稿URLかメディアIDで投稿に紐づけます。</Note>
         <Note>フォロワー一覧に職業や自己紹介が含まれるとは限りません。オーディエンスのサンプルは、本人が持っている自己紹介・アンケート回答などがある場合だけ取り込みます。</Note>

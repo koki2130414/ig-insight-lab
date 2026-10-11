@@ -10,7 +10,6 @@ import { parseBool, parseDateTime, parseDay, parseEnum, parseNumber, parseText, 
 import { validateRows, commitRows, MAX_IMPORT_ROWS, type ImportKind, IMPORT_KINDS } from "@/lib/importer";
 import { buildUtmUrl, checkpointDrift, classifyByKeywords } from "@/lib/analytics";
 import { generateRuleBased, generateWithAi, type GenInput } from "@/lib/generator";
-import { resetDemo } from "@/lib/seed";
 import { syncAccount } from "@/lib/instagram/sync";
 import { parseFollowersUpload } from "@/lib/followers";
 import { weekStart, jstDay, addDays } from "@/lib/time";
@@ -45,14 +44,6 @@ async function guarded(path: string, fn: (ctx: Ctx) => Promise<string | void>) {
 }
 
 // ---------- 表示切替・ログイン ----------
-export async function setDataset(fd: FormData) {
-  const v = get(fd, "dataset");
-  const c = await cookies();
-  c.set("iil_dataset", v === "real" ? "real" : "demo", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
-  revalidatePath("/", "layout");
-  redirect(await backPath());
-}
-
 /** 切替後は元のページへ（同一オリジンのパスのみ。詳細ページはデータセットが変わると無効なので一覧へ） */
 async function backPath() {
   const ref = (await headers()).get("referer");
@@ -469,13 +460,6 @@ export async function saveUserSetting(fd: FormData) {
     if (key !== "gross_profit_rule") throw new FormError("不正な設定");
     await ctx.db.query(`INSERT INTO user_settings(user_id,key,value) VALUES ($1,$2,$3) ON CONFLICT (user_id,key) DO UPDATE SET value=EXCLUDED.value`, [ctx.userId, key, JSON.stringify(txt(fd, "value", 2000))]);
     return "保存しました";
-  });
-}
-
-export async function resetDemoData() {
-  await guarded("/settings", async (ctx) => {
-    await resetDemo(ctx.db, ctx.userId);
-    return "デモデータを初期状態に戻しました";
   });
 }
 

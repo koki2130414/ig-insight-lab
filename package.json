@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
-    "db:reset-demo": "node scripts/reset-demo.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

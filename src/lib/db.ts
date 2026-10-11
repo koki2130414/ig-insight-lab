@@ -127,6 +127,8 @@ export async function getDb(): Promise<Db> {
 export async function createTestDb(): Promise<Db> {
   const db = await createPglite("memory://");
   await bootstrap(db);
+  const { ensureSeed } = await import("./seed");
+  await ensureSeed(db, { demo: true }); // テストではデモとの分離も確かめる
   return db;
 }
 

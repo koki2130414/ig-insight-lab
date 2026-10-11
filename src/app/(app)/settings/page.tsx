@@ -1,5 +1,5 @@
 import { getContext } from "@/lib/context";
-import { deleteRealData, disconnect, resetDemoData, saveAccountSettings, saveUserSetting, syncNow } from "@/app/actions";
+import { deleteRealData, disconnect, saveAccountSettings, saveUserSetting, syncNow } from "@/app/actions";
 import { Badge, Card, Field, Flash, Note, PageHeader } from "@/components/ui";
 import { Submit } from "@/components/client";
 import { ACCOUNT_METRICS, POST_METRICS, FORMATS } from "@/lib/catalog";
@@ -23,7 +23,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <div className="grid gap-4 lg:grid-cols-2">
         {ctx.accounts.map((a) => (
-          <Card key={a.id} title={`${a.display_name}（@${a.handle}）`} actions={ctx.dataset === "demo" ? <Badge t="demo">デモ</Badge> : null}>
+          <Card key={a.id} title={`${a.display_name}（@${a.handle}）`}>
             <form action={saveAccountSettings} className="space-y-3">
               <input type="hidden" name="account_id" value={a.id} />
               <Field label="表示名"><input name="display_name" defaultValue={a.display_name} className="field" /></Field>
@@ -77,7 +77,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     <form action={disconnect}><input type="hidden" name="account_id" value={a.id} /><Submit className="btn-ghost" confirm="接続を解除し、保存しているトークンを削除しますか？" pendingText="解除中">接続解除</Submit></form>
                   )}
                 </div>
-                {ctx.dataset === "demo" && status === "connected" && <p className="mt-2 text-xs text-muted">同期・解除は「実データ」表示に切り替えてから行えます。</p>}
               </div>
             );
           })}
@@ -111,7 +110,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <p className="text-sm">{aiConnected() ? <Badge t="green">接続済み</Badge> : <Badge>AI未接続</Badge>} 施策案の生成に使います。送信前に送信内容を表示し、同意を求めます。個人のプロフィールやオーディエンスの個人データは送りません。</p>
         </Card>
         <Card title="データの書き出し">
-          <p className="mb-2 text-sm">表示中のデータセット（{ctx.dataset === "demo" ? "デモ" : "実データ"}）をJSONで書き出します。トークンは含みません。</p>
+          <p className="mb-2 text-sm">実データをJSONで書き出します。トークンは含みません。</p>
           <a href="/api/export" className="btn-ghost">JSONをダウンロード</a>
         </Card>
         <Card title="データの削除">
@@ -119,9 +118,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <p className="text-sm">実データの投稿・指標・オーディエンス・施策・成果をすべて削除します（元に戻せません）。</p>
             <input name="confirm" placeholder="「削除する」と入力" className="field" />
             <Submit className="btn-danger" pendingText="削除中…">実データを削除</Submit>
-          </form>
-          <form action={resetDemoData} className="mt-3">
-            <Submit className="btn-ghost" pendingText="初期化中…">デモデータを初期状態に戻す</Submit>
           </form>
         </Card>
       </div>

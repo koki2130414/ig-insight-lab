@@ -7,9 +7,10 @@ export const LOCAL_USER = "local";
 const HANDLES = { personal: "_ko_213", farm: "213nouen" } as const;
 const NAMES = { personal: "新見康樹", farm: "にいみ農園" } as const;
 
-export async function ensureSeed(db: Db) {
+/** 初期データ。アプリでは実データ用の2アカウントのみ作る（デモはテスト用に demo: true のときだけ） */
+export async function ensureSeed(db: Db, opts: { demo?: boolean } = {}) {
   await db.query(`INSERT INTO app_users(id,name) VALUES ($1,$2) ON CONFLICT (id) DO NOTHING`, [LOCAL_USER, "新見康樹"]);
-  for (const dataset of ["real", "demo"] as const) {
+  for (const dataset of (opts.demo ? ["real", "demo"] : ["real"]) as ("real" | "demo")[]) {
     for (const kind of ["personal", "farm"] as const) {
       const existing = await db.query(`SELECT id FROM accounts WHERE user_id=$1 AND dataset=$2 AND kind=$3`, [LOCAL_USER, dataset, kind]);
       if (existing.length) continue;

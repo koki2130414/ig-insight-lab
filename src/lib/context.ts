@@ -84,15 +84,8 @@ export const getContext = cache(async function getContext(): Promise<Ctx> {
   const userId = await requireUser();
   const db = await getDb();
   const c = await cookies();
-  let dataset = c.get("iil_dataset")?.value as Dataset | undefined;
-  if (dataset !== "demo" && dataset !== "real") {
-    // 未選択: 実データが1件でもあれば実データ、無ければデモ
-    const [{ n }] = await db.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM posts p JOIN accounts a ON a.id=p.account_id WHERE a.user_id=$1 AND a.dataset='real'`,
-      [userId],
-    );
-    dataset = n > 0 ? "real" : "demo";
-  }
+  // デモ表示は廃止。常に実データのみ扱う
+  const dataset: Dataset = "real";
   const viewRaw = c.get("iil_view")?.value;
   const view: View = viewRaw === "farm" || viewRaw === "both" ? viewRaw : "personal";
   const accounts = await db.query<Account>(
