@@ -61,3 +61,22 @@ describe("自動同期", () => {
     expect(c.sync_started_at).toBeNull();
   });
 });
+
+describe("手入力済みの投稿との紐づけ", () => {
+  it("URLの /p/ と /reel/ の違い・別のIDが入っていても、同じ投稿として更新する", async () => {
+    const db = await createTestDb();
+    const [acc] = await db.query<{ id: string }>(`SELECT id FROM accounts WHERE dataset='real' AND kind='farm'`);
+    await db.query(`INSERT INTO posts(account_id,external_id,url,posted_at,format,source) VALUES ($1,'web123','https://www.instagram.com/p/ABC_1/',now(),'reel','manual')`, [acc.id]);
+    const fake: InsightsAdapter = {
+      profile: async () => ({ id: "1", username: "213nouen", followers_count: 488 }),
+      recentMedia: async () => [{ id: "1789", media_type: "VIDEO", media_product_type: "REELS", permalink: "https://www.instagram.com/reel/ABC_1/", timestamp: new Date().toISOString() }],
+      mediaInsights: async (_id, metrics) => metrics.map((m) => ({ name: m, value: 1 })),
+      accountTotals: async (metrics) => metrics.map((m) => ({ name: m, value: null })),
+      accountBreakdown: async (metric) => ({ name: metric, total: null, breakdown: {} }),
+      demographics: async (metric) => ({ name: metric, total: null, breakdown: {} }),
+    };
+    await syncAccount(db, acc.id, fake);
+    const posts = await db.query<{ external_id: string; url: string }>(`SELECT external_id, url FROM posts WHERE account_id=$1`, [acc.id]);
+    expect(posts).toEqual([{ external_id: "1789", url: "https://www.instagram.com/reel/ABC_1/" }]);
+  });
+});

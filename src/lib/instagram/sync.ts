@@ -62,7 +62,15 @@ export async function syncAccount(db: Db, accountId: string, adapterOverride?: I
       const format = formatOf(m);
       const url = m.permalink ? normalizeIgUrl(m.permalink) : null;
       // 手入力・CSVで先に登録済みの投稿（URLのみ）にメディアIDを紐づける
-      if (url) await db.query(`UPDATE posts SET external_id=$2 WHERE account_id=$1 AND url=$3 AND external_id IS NULL`, [accountId, m.id, url]);
+      // 投稿URLの /p/ と /reel/ の違いや、Web版のIDが入っている場合も、ショートコードで同じ投稿とみなす
+      const code = url?.match(/\/(?:p|reel|tv)\/([^/]+)\/$/)?.[1];
+      if (code) {
+        await db.query(
+          `UPDATE posts SET external_id=$2, url=$3, updated_at=now()
+            WHERE account_id=$1 AND right(url, length($4)) = $4 AND external_id IS DISTINCT FROM $2
+              AND NOT EXISTS (SELECT 1 FROM posts q WHERE q.account_id=$1 AND q.external_id=$2)`,
+          [accountId, m.id, url, `/${code}/`]);
+      }
       const [post] = await db.query<{ id: string }>(
         `INSERT INTO posts(account_id,external_id,url,posted_at,format,caption,source) VALUES ($1,$2,$3,$4,$5,$6,'api')
          ON CONFLICT (account_id, external_id) WHERE external_id IS NOT NULL DO UPDATE SET caption=EXCLUDED.caption, updated_at=now() RETURNING id`,
