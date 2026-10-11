@@ -1,6 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getDb, type Db } from "./db";
@@ -78,7 +79,8 @@ export async function requireUser(): Promise<string> {
   return LOCAL_USER;
 }
 
-export async function getContext(): Promise<Ctx> {
+/** 1リクエスト内ではレイアウトとページで同じ結果を使い回す（DB往復を減らす） */
+export const getContext = cache(async function getContext(): Promise<Ctx> {
   const userId = await requireUser();
   const db = await getDb();
   const c = await cookies();
@@ -101,7 +103,7 @@ export async function getContext(): Promise<Ctx> {
   const current = accounts.find((a) => a.kind === (view === "both" ? "personal" : view)) ?? accounts[0];
   const selected = view === "both" ? accounts : [current];
   return { db, userId, dataset, view, accounts, current, selected };
-}
+});
 
 /**
  * 書き込み・参照時のアカウント検証。

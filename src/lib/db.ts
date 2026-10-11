@@ -1,5 +1,6 @@
 import "server-only";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 
 /**
@@ -46,7 +47,8 @@ async function createPg(url: string): Promise<Db> {
   u.searchParams.delete("sslmode");
   const pool = new Pool({
     connectionString: u.toString(),
-    max: process.env.VERCEL ? 2 : 5,
+    max: process.env.VERCEL ? 3 : 5,
+    idleTimeoutMillis: 60_000,
     ssl: local || process.env.DATABASE_SSL === "disable" ? undefined : { rejectUnauthorized: false },
   });
   // 共用の Supabase プロジェクトでも他アプリと混ざらないよう、専用スキーマを使う（DB_SCHEMA）
@@ -88,8 +90,9 @@ function normalizeParam(p: unknown) {
   return p;
 }
 
+let schemaCache: string | undefined;
 export function schemaSql() {
-  return fs.readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8");
+  return (schemaCache ??= fs.readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8"));
 }
 
 /** 使用するスキーマ名（英小文字・数字・_ のみ） */
@@ -129,6 +132,15 @@ export async function createTestDb(): Promise<Db> {
 
 async function bootstrap(db: Db) {
   const { ensureSeed } = await import("./seed");
+  const sql = schemaSql();
+  const version = crypto.createHash("sha256").update(sql).digest("hex").slice(0, 16);
+  // 速さのため: スキーマが最新版で初期データもあれば、DDLを流さず1往復で終える
+  try {
+    const rows = await db.query<{ value: string }>(`SELECT value FROM app_meta WHERE key = 'schema_version'`);
+    if (rows[0]?.value === version) return;
+  } catch {
+    // 初回（app_meta が無い）
+  }
   if (process.env.DATABASE_URL) {
     // 複数のサーバーが同時に起動しても初期化が重ならないよう、トランザクション内でアドバイザリロックを取る
     await db.transaction(async (tx) => {
@@ -140,14 +152,16 @@ async function bootstrap(db: Db) {
         if (!exists.length) await tx.query(`CREATE SCHEMA "${schema}"`);
         await tx.query(`SET LOCAL search_path TO "${schema}", public`);
       }
-      for (const stmt of splitSql(schemaSql())) await tx.query(stmt);
+      for (const stmt of splitSql(sql)) await tx.query(stmt);
       await ensureSeed(tx);
+      await tx.query(`INSERT INTO app_meta(key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [version]);
     });
     return;
   }
   // PGlite は ; で分割して1文ずつ流す
-  for (const stmt of splitSql(schemaSql())) await db.query(stmt);
+  for (const stmt of splitSql(sql)) await db.query(stmt);
   await ensureSeed(db);
+  await db.query(`INSERT INTO app_meta(key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [version]);
 }
 
 function splitSql(sql: string) {

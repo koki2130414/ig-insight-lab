@@ -6,6 +6,12 @@
 --  * 各指標には取得元(source)・計測区分(measurement)・取得日時(captured_at)を持たせる。
 --  * 日付（期間）は Asia/Tokyo の暦日を 'YYYY-MM-DD' 文字列で持つ（ドライバのタイムゾーン変換を避けるため）。
 
+-- スキーマ版数（起動時に毎回DDLを流さないため）
+CREATE TABLE IF NOT EXISTS app_meta (
+  key   text PRIMARY KEY,
+  value text NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_users (
   id          text PRIMARY KEY,
   name        text NOT NULL,
