@@ -42,9 +42,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </form>
       )}
       {!period ? (
+        <>
+        <LatestFollowers ctx={ctx} />
         <Empty title="期間の指標がまだありません">
           <Link className="underline" href="/metrics">期間の指標を入力</Link>するか、<Link className="underline" href="/import">CSVで取り込み</Link>、または<Link className="underline" href="/settings">公式APIを接続</Link>してください。
         </Empty>
+        </>
       ) : ctx.view === "both" ? (
         <CompareTable ctx={ctx} start={period.period_start} end={period.period_end} />
       ) : (
@@ -211,5 +214,29 @@ async function NextActions({ ctx }: { ctx: Ctx }) {
       </ul>
       {items.length > 6 && <p className="mt-2 text-xs text-muted">ほか{items.length - 6}件</p>}
     </Card>
+  );
+}
+
+/** 期間の指標がまだ無いときでも、記録済みの最新フォロワー数とその推移は表示する */
+async function LatestFollowers({ ctx }: { ctx: Ctx }) {
+  const items = await Promise.all(ctx.selected.map(async (acc) => ({ acc, series: await followerSeries(ctx, acc.id) })));
+  if (!items.some((i) => i.series.length)) return null;
+  return (
+    <div className="mb-4 grid gap-4 lg:grid-cols-2">
+      {items.map(({ acc, series }) => {
+        const last = series[series.length - 1];
+        return (
+          <Card key={acc.id} title={`${acc.display_name}のフォロワー数`}>
+            {last ? (
+              <>
+                <div className="text-2xl font-bold"><Val v={last.value} />人</div>
+                <div className="mt-1 text-xs text-muted">時点: {fmtDate(last.day)} <SourceBadge source={last.source} measurement={last.source === "api" ? "measured" : "manual"} />{acc.follower_target ? `・目標 ${acc.follower_target.toLocaleString("ja-JP")}人` : ""}</div>
+                <div className="mt-3"><FollowerChart data={series.map((s) => ({ day: s.day, value: s.value }))} target={acc.follower_target} /></div>
+              </>
+            ) : <p className="text-sm text-muted">まだ記録がありません。</p>}
+          </Card>
+        );
+      })}
+    </div>
   );
 }
