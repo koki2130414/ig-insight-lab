@@ -41,9 +41,15 @@ export function authEnabled() {
   return Boolean(process.env.APP_PASSCODE);
 }
 
+/** 全角英数字・前後の空白の違いで弾かれないよう正規化してから比較する */
+function normalizePasscode(s: string) {
+  return s.normalize("NFKC").trim();
+}
+
 export function checkPasscode(input: string) {
-  const expected = process.env.APP_PASSCODE || "";
-  const a = Buffer.from(input);
+  const expected = normalizePasscode(process.env.APP_PASSCODE || "");
+  if (!expected) return false;
+  const a = Buffer.from(normalizePasscode(input));
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
