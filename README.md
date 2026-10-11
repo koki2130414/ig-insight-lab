@@ -1,36 +1,137 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IG Insight Lab
 
-## Getting Started
+新見康樹（@_ko_213）とにいみ農園（@213nouen）の Instagram を分析し、施策の作成・実行記録・振り返りを繰り返すための個人用アプリです。
+再生回数だけを追うのではなく、「届けたい人への認知」「信頼」「問い合わせ」「お米の購入」「農業体験への参加」につながる運用を目指します。
+バズやフォロワー増加を保証するものではありません。
 
-First, run the development server:
+- Next.js 16（App Router）/ TypeScript / Tailwind CSS v4 / Recharts
+- PostgreSQL 互換 DB：ローカルでは PGlite（組み込み）、`DATABASE_URL` を設定すれば Supabase / PostgreSQL
+- 外部 API（Instagram・AI）は交換可能なアダプターとして分離しています。未接続でも全機能が動きます。
+
+## セットアップ
+
+必要なもの：Node.js 20.9 以上（22 推奨）
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # 任意。空のままでも動きます
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+初回起動時に `./.data/pglite` にデータベースが作られ、次のものが自動で入ります。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 2つのアカウント（個人・農園）
+- 届けたい層の初期仮説
+- デモデータ
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+本番ビルドで動かす場合は `npm run build && npm start` を実行します。
 
-## Learn More
+| コマンド | 内容 |
+|---|---|
+| `npm test` | 指標計算・取り込み・重複防止・データ分離・API同期（モック）のテスト |
+| `npm run lint` | ESLint |
 
-To learn more about Next.js, take a look at the following resources:
+### Supabase を使う場合
+1. Supabase でプロジェクトを作成し、接続文字列（Session pooler 推奨）を `DATABASE_URL` に設定します。
+2. 起動すると `db/schema.sql` が自動で適用されます。SQL エディタで手動適用することもできます。
+3. ネット上に公開するときは、`APP_PASSCODE` を必ず設定してください。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 画面
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| 画面 | 内容 |
+|---|---|
+| ダッシュボード | 期間の指標、フォロワー推移と目標、次にやること、今週の施策、検証待ち。2アカウントの比較は同じ期間・同じ定義に限る |
+| 期間の指標 (/metrics) | アカウント単位の指標を手入力し、定義と API での取得可否を確認する |
+| 投稿と比較 | 形式別の基準値（中央値・平均・件数）と投稿一覧。投稿詳細では 24h / 72h / 7d の実績を入力し、同条件の投稿と比較する |
+| 取り込み | CSV / JSON。カラムの対応づけ、プレビュー、入力エラーの表示、重複防止。テンプレートは `public/templates/` |
+| オーディエンス | フォロワー／到達した人／反応した人を分けて表示。本人が提供したサンプルを、根拠と信頼度つきで分類する |
+| ターゲット | 現在の層（根拠が必須）と届けたい層（仮説）。届け方として投稿内容・コラボ・導線・広告を区別する |
+| 施策をつくる | 対象層・目的・素材・制作時間・変更点から施策案を作る。事実・仮説・提案を分けて表示し、AI 未接続時はルールベースで作る |
+| 検証ボード | アイデア → 制作中 → 投稿済み → 計測中 → 振り返り済み。自然投稿どうしの比較は「比較検証」と表示する |
+| 施策の詳細 | 投稿の紐づけ、結果（主指標の中央値比）、同じ変更点の過去結果に基づく判定の提案、影響要因、費用、成果、UTM |
+| 導線・売上 | 投稿 → プロフィール → リンク → LINE・サイト → 成果。成果は 計測できた／自己申告／経路不明 に分ける。施策ごとのコスト比較と UTM 作成 |
+| 週次レビュー | 伸びた投稿（理由は仮説として表示）、確認できたこと／未確認のこと、成果、制作時間から決める次週の施策（最大3件）、やめる／修正する施策 |
+| 設定・接続 | 役割・目標・制作時間の編集、粗利益の算定条件、API 接続・同期・解除、JSON エクスポート、実データの削除、デモの初期化 |
 
-## Deploy on Vercel
+上部のボタンで「個人／農園／2アカウント比較」と「実データ／デモ」を切り替えます。デモ表示中は全画面に黄色の帯が出ます。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## データの扱い（守っているルール）
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **欠損は null**：空欄・未取得・非対応は null で保存し、0 と区別して「未取得」と表示します。平均や中央値には含めず、欠損の件数を別に表示します。
+- **ゼロ除算しない**：率の分母（リーチ）が欠損または 0 のときは「算出不可」と表示します。
+- **比較の条件**：比較するのは、同じアカウント・同じ形式・同じ時点（24h / 72h / 7d）の投稿どうしです。
+  - 時点から 25% 以上ずれた記録は除外できます。
+  - 広告やプレゼント企画の投稿は、既定で除外します。
+- **ユニークリーチ**：アカウント全体のリーチは期間の指標を使います。投稿ごとのリーチを合計した値は使いません。
+- **デモと実データの分離**：アカウントはデモ用と実データ用で別の ID を持ち、すべてのデータはどちらかのアカウントにひもづきます。書き込みのたびに、「表示中のデータセットの、自分のアカウントか」を検証します。
+- **重複防止**：次の単位で重複を判定し、再取り込みしても二重登録や上書きはしません。
+  - 投稿：URL（正規化したもの）またはメディア ID
+  - 実績：投稿 × 時点
+  - 期間指標：指標 × 期間 × 取得元
+  - 成果：注文番号（無いときは内容から作るハッシュ）
+- **取得元と区分**：各値に、取得元（API / CSV / JSON / 手入力 / デモ）、区分（実測 / 手入力 / 推定）、取得日時、期間を記録します。
+- **オーディエンス**：
+  - 名前や写真から属性を推定しません。センシティブな属性も扱いません。
+  - サンプルの構成比を、フォロワー全体の構成比としては扱いません。
+- **AI**：
+  - 送る前に送信内容を表示し、同意を求めます。送るのは集計値と本人が設定した仮説だけで、個人データは送りません。
+  - 取り込んだ文章は `<data>` として渡し、そこに書かれた命令には従わない指示を付けています。
+- **自動実行しない**：投稿・DM・フォロー・いいね・広告配信は一切行いません。
+- **認証情報**：
+  - トークンは AES-256-GCM で暗号化してサーバー側の DB に保存します。画面・ログ・エクスポートには出しません。
+  - OAuth は state を DB と Cookie の両方で照合します。
+  - ログインしたアカウントが接続先と違う場合は、トークンを保存しません。
+
+## アカウント接続（Instagram 公式 API）
+
+Meta の公式ドキュメントで確認した内容は [docs/meta-api-research.md](docs/meta-api-research.md) にまとめています（2026-10-11 確認、v25.0）。
+
+1. **プロアカウント化**：@_ko_213 と @213nouen を、ビジネスまたはクリエイターアカウントにします。個人アカウントは API の対象外です。
+2. **Meta for Developers でアプリを作成**：
+   1. https://developers.facebook.com/apps でアプリを作成し、ユースケースに Instagram を追加して「API setup with Instagram login」を選びます。
+   2. 「Instagram テスター／アカウント」に2つのアカウントを追加し、各アカウント側で招待を承認します。
+   3. リダイレクト URI に `http://localhost:3000/api/oauth/instagram/callback` を登録します（公開する場合は https の URL）。
+   4. 自分が管理するアカウントだけを使うので、Standard Access のまま使えます。App Review は不要です。
+3. **`.env.local` を設定**：
+   - `META_APP_ID` と `META_APP_SECRET`（Instagram アプリ ID とシークレット）
+   - `META_REDIRECT_URI`
+   - `TOKEN_ENCRYPTION_KEY`（`openssl rand -base64 32` で作成）
+4. **接続**：アプリで「実データ」に切り替え、設定・接続 → 「接続する」を押します。Instagram でログインし、`instagram_business_basic` と `instagram_business_manage_insights` を許可します。
+5. **同期**：「今すぐ同期」を押すと、次のものを保存します。
+   - フォロワー数
+   - 直近50件の投稿とその時点の実績（スナップショット）
+   - 前週（月〜日）のアカウント指標
+   - フォロワー属性
+
+   取得できなかった指標は、理由を接続状態に表示します。
+
+**注意**：投稿後 24h / 72h / 7d の値は、後からさかのぼって取得できません。その時点の前後に同期するか、インサイト画面を見て手入力してください。ダッシュボードの「次にやること」が、記録の時期を知らせます。
+
+## 未実装・制限事項
+
+- **Meta API の定期同期**：同期ボタンによる手動同期のみです。定期実行は、外部の cron から設定・接続の同期を呼ぶ仕組みを今後追加します。トークンの自動更新（期限7日前）は同期時に行います。
+- **実アカウントでの API 動作**：実アカウントでは未確認です。モックアダプターでのテストと、OAuth の開始・state 検証のみ確認しています。
+- **レート制限**：数値は公式ページを取得できず未確認です。429 などを受けたときの再試行のみ実装しています。
+- **その他の未実装機能**：
+  - インサイト画像の自動読み取り（OCR）。手入力フォームの値を差し替える形で追加できる構成です。
+  - EC・LINE との自動連携（現在は CSV・手入力）
+  - 競合投稿の登録と比較
+  - 詳細な粗利益分析（現在は施策ごとの費用・計測売上・粗利益・1件あたり費用まで）
+- **ユーザー管理**：単一ユーザー（パスコード方式）です。全データは user_id とアカウントで区切っていますが、複数ユーザーで使う場合は Supabase Auth などへの置き換えが必要です。
+- **AI の分類**：自己紹介の自動分類はキーワード一致（推定）のみです。AI による分類は、送信内容の確認画面を含めて今後追加します。
+
+## ディレクトリ
+
+```
+db/schema.sql                 スキーマ（PGlite / PostgreSQL / Supabase 共通）
+docs/meta-api-research.md     Meta公式ドキュメントの確認記録
+public/templates/*.csv        取り込みテンプレート（UTF-8 BOM付き。Excelで開けます）
+src/lib/catalog.ts            指標・形式・カテゴリの定義とAPIでの取得可否
+src/lib/analytics.ts          率・中央値・比較・判定の純粋関数
+src/lib/importer.ts           取り込みの検証・重複防止
+src/lib/instagram/            公式APIアダプター（差し替え可能）と同期処理
+src/lib/generator.ts          施策案（ルールベース／AI）
+src/lib/review.ts             週次レビューの集計
+src/app/actions.ts            サーバーアクション（入力検証・所有チェック）
+tests/                        Vitest
+```
