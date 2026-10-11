@@ -176,3 +176,32 @@ describe("取り込みと分離", () => {
     expect(row.status).toBe("not_entered");
   });
 });
+
+import { zipSync, strToU8 } from "fflate";
+import { parseFollowersUpload, diffFollowers, parseFollowersJson } from "@/lib/followers";
+
+describe("フォロワー一覧（Instagramの書き出し）", () => {
+  const json = JSON.stringify([
+    { title: "", media_list_data: [], string_list_data: [{ href: "https://www.instagram.com/alice_1", value: "alice_1", timestamp: 1760000000 }] },
+    { title: "bob.b", string_list_data: [{ href: "https://www.instagram.com/_u/bob.b", timestamp: 1760100000 }] },
+    { title: "", string_list_data: [{ href: "https://www.instagram.com/carol/" }] },
+    { title: "", string_list_data: [{ value: "<script>" }] },
+  ]);
+  it("値・タイトル・URLのどれからでもユーザーネームを読み、不正な名前は捨てる", () => {
+    const r = parseFollowersJson(json);
+    expect(r.map((e) => e.username)).toEqual(["alice_1", "bob.b", "carol"]);
+    expect(r[0].followedAt?.toISOString()).toBe(new Date(1760000000 * 1000).toISOString());
+    expect(r[2].followedAt).toBeNull();
+  });
+  it("zipの中の followers_*.json だけを読み、フォロー中の一覧は無視する", () => {
+    const zip = zipSync({
+      "connections/followers_and_following/followers_1.json": strToU8(json),
+      "connections/followers_and_following/following.json": strToU8(JSON.stringify({ relationships_following: [{ title: "zed", string_list_data: [{ href: "https://www.instagram.com/_u/zed" }] }] })),
+    });
+    const r = parseFollowersUpload("instagram-export.zip", zip);
+    expect(r.entries.map((e) => e.username)).toEqual(["alice_1", "bob.b", "carol"]);
+  });
+  it("差分でフォローした人・外した人を出す", () => {
+    expect(diffFollowers(["a", "b", "c"], ["b", "c", "d"])).toEqual({ gained: ["d"], lost: ["a"] });
+  });
+});

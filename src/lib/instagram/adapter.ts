@@ -72,7 +72,17 @@ export function graphAdapter(accessToken: string, fetchImpl: FetchLike = fetch):
       return out.slice(0, limit);
     },
     async mediaInsights(mediaId, metrics) {
-      // 指標ごとに取得可否が異なるため1指標ずつ要求し、失敗理由を個別に残す
+      // まず全指標を1回で要求する（API呼び出し回数を減らす）
+      try {
+        const r = (await getJson(u(`/${mediaId}/insights`, { metric: metrics.join(",") }), fetchImpl)) as { data: { name: string; values?: { value: number }[]; total_value?: { value: number } }[] };
+        return metrics.map((m) => {
+          const d = r.data?.find((x) => x.name === m);
+          const v = d?.values?.[0]?.value ?? d?.total_value?.value;
+          return { name: m, value: typeof v === "number" ? v : null, error: d ? undefined : "空の結果（データ無し）" };
+        });
+      } catch {
+        // 1つでも非対応の指標があると全体が失敗するため、そのときは1指標ずつ要求して失敗理由を個別に残す
+      }
       const results: InsightValue[] = [];
       for (const m of metrics) {
         try {

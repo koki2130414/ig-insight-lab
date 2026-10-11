@@ -43,3 +43,21 @@ describe("API同期（モックアダプター）", () => {
     expect(redact("https://x?access_token=abc&y=1")).toBe("https://x?access_token=[REDACTED]&y=1");
   });
 });
+
+describe("自動同期", () => {
+  it("接続中の実データだけを対象にし、同期中・直近同期済みは飛ばす", async () => {
+    const { syncConnected } = await import("@/lib/instagram/auto");
+    Object.assign(process.env, { META_APP_ID: "x", META_APP_SECRET: "x", META_REDIRECT_URI: "https://x/cb", TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") });
+    const db = await createTestDb();
+    const [real] = await db.query<{ id: string }>(`SELECT id FROM accounts WHERE dataset='real' AND kind='personal'`);
+    const [demo] = await db.query<{ id: string }>(`SELECT id FROM accounts WHERE dataset='demo' AND kind='personal'`);
+    for (const id of [real.id, demo.id]) await db.query(`INSERT INTO connections(account_id,status,token_ciphertext) VALUES ($1,'connected','bad') ON CONFLICT (account_id) DO UPDATE SET status='connected', token_ciphertext='bad', last_synced_at=NULL`, [id]);
+    const r1 = await syncConnected(db, { staleMs: 3600000 });
+    expect(r1.map((r) => r.accountId)).toEqual([real.id]); // デモは対象外（トークン不正なので失敗として記録）
+    expect(r1[0].ok).toBe(false);
+    await db.query(`UPDATE connections SET last_synced_at=now() WHERE account_id=$1`, [real.id]);
+    expect(await syncConnected(db, { staleMs: 3600000 })).toEqual([]);
+    const [c] = await db.query<{ sync_started_at: Date | null }>(`SELECT sync_started_at FROM connections WHERE account_id=$1`, [real.id]);
+    expect(c.sync_started_at).toBeNull();
+  });
+});

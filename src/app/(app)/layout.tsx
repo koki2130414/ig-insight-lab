@@ -2,10 +2,20 @@ import { getContext, authEnabled } from "@/lib/context";
 import { setDataset, setView, logout } from "@/app/actions";
 import { Nav } from "@/components/client";
 import { aiConnected } from "@/lib/generator";
+import { after } from "next/server";
+import { STALE_MS, syncConnected } from "@/lib/instagram/auto";
+
+// 画面表示後の裏での同期（after）に使える時間
+export const maxDuration = 300;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getContext();
   const demo = ctx.dataset === "demo";
+  if (!demo) {
+    // 前回の同期から1時間以上たっていれば、画面を返した後に裏で同期する（表示は待たせない）
+    const { db, userId } = ctx;
+    after(() => syncConnected(db, { staleMs: STALE_MS, userId }).catch(() => undefined));
+  }
   const views = [
     { v: "personal", label: "個人 @_ko_213" },
     { v: "farm", label: "農園 @213nouen" },

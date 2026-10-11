@@ -12,6 +12,7 @@ import { buildUtmUrl, checkpointDrift, classifyByKeywords } from "@/lib/analytic
 import { generateRuleBased, generateWithAi, type GenInput } from "@/lib/generator";
 import { resetDemo } from "@/lib/seed";
 import { syncAccount } from "@/lib/instagram/sync";
+import { parseFollowersUpload } from "@/lib/followers";
 import { weekStart, jstDay, addDays } from "@/lib/time";
 
 // ---------- 共通 ----------
@@ -487,6 +488,7 @@ export async function deleteRealData(fd: FormData) {
         await ctx.db.query(`DELETE FROM ${t} WHERE account_id=$1`, [a.id]);
       }
       await ctx.db.query(`DELETE FROM audience_people WHERE account_id=$1`, [a.id]);
+      await ctx.db.query(`DELETE FROM follower_lists WHERE account_id=$1`, [a.id]);
     }
     return "実データ（投稿・指標・オーディエンス・施策・成果）を削除しました。ターゲット設定と接続は残っています";
   });
@@ -506,6 +508,50 @@ export async function syncNow(fd: FormData) {
     if (acc.dataset !== "real") throw new FormError("デモデータでは同期できません");
     const r = await syncAccount(ctx.db, acc.id);
     return `同期しました: 投稿${r.media}件・スナップショット${r.snapshots}件・週次 ${r.period}${r.notes.length ? `（取得できなかった項目 ${r.notes.length}件は接続状態に表示）` : ""}`;
+  });
+}
+
+// ---------- フォロワー一覧（Instagramの書き出しファイル） ----------
+const MAX_FOLLOWER_FILE = 4 * 1024 * 1024;
+
+export async function importFollowers(fd: FormData) {
+  await guarded("/followers", async (ctx) => {
+    const acc = await requireAccount(ctx, get(fd, "account_id"));
+    if (acc.dataset !== "real") throw new FormError("デモデータには取り込めません。「実データ」に切り替えてください");
+    const file = fd.get("file");
+    if (!(file instanceof File) || file.size === 0) throw new FormError("ファイルを選んでください");
+    if (file.size > MAX_FOLLOWER_FILE) throw new FormError("ファイルが大きすぎます（4MBまで）。書き出すときに「フォロワーとフォロー中」だけを選んでください");
+    const parsed = parseFollowersUpload(file.name, new Uint8Array(await file.arrayBuffer()));
+    const capturedAt = must(parseDateTime(get(fd, "captured_at")), "書き出した日時") ?? new Date();
+    const prev = await ctx.db.query<{ id: string; captured_at: Date }>(`SELECT id, captured_at FROM follower_lists WHERE account_id=$1 AND captured_at=$2`, [acc.id, capturedAt]);
+    if (prev.length) throw new FormError("同じ日時の一覧がすでにあります。日時を確認してください");
+    await ctx.db.transaction(async (tx) => {
+      const [list] = await tx.query<{ id: string }>(
+        `INSERT INTO follower_lists(account_id,captured_at,source,filename,total) VALUES ($1,$2,'export',$3,$4) RETURNING id`,
+        [acc.id, capturedAt, file.name.slice(0, 200), parsed.entries.length]);
+      for (let i = 0; i < parsed.entries.length; i += 500) {
+        const chunk = parsed.entries.slice(i, i + 500);
+        const params: unknown[] = [list.id];
+        const values = chunk.map((e, j) => {
+          params.push(e.username, e.followedAt);
+          return `($1,$${j * 2 + 2},$${j * 2 + 3})`;
+        });
+        await tx.query(`INSERT INTO follower_list_members(list_id,username,followed_at) VALUES ${values.join(",")} ON CONFLICT DO NOTHING`, params);
+      }
+    });
+    return `フォロワー${parsed.entries.length.toLocaleString("ja-JP")}人の一覧を取り込みました${parsed.warnings.length ? `（注意: ${parsed.warnings.join(" / ")}）` : ""}`;
+  });
+}
+
+export async function deleteFollowerList(fd: FormData) {
+  await guarded("/followers", async (ctx) => {
+    const id = get(fd, "list_id");
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) throw new FormError("IDが不正です");
+    const [row] = await ctx.db.query<{ account_id: string }>(`SELECT account_id FROM follower_lists WHERE id=$1`, [id]);
+    if (!row) throw new FormError("見つかりません");
+    await requireAccount(ctx, row.account_id);
+    await ctx.db.query(`DELETE FROM follower_lists WHERE id=$1`, [id]);
+    return "一覧を削除しました";
   });
 }
 

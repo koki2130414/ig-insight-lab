@@ -300,3 +300,27 @@ CREATE TABLE IF NOT EXISTS import_batches (
   errors      integer NOT NULL,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- 自動同期の多重実行防止（同期開始時刻）
+ALTER TABLE connections ADD COLUMN IF NOT EXISTS sync_started_at timestamptz;
+
+-- フォロワー一覧（Instagram「情報をダウンロード」の書き出しファイルから取り込む。公式APIでは誰がフォローしたかは取得できない）
+CREATE TABLE IF NOT EXISTS follower_lists (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id  uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  captured_at timestamptz NOT NULL,   -- 書き出しファイルが作られた時点（不明なら取り込み時刻）
+  source      text NOT NULL CHECK (source IN ('export','manual')),
+  filename    text,
+  total       integer NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS follower_lists_account_idx ON follower_lists(account_id, captured_at);
+
+CREATE TABLE IF NOT EXISTS follower_list_members (
+  list_id     uuid NOT NULL REFERENCES follower_lists(id) ON DELETE CASCADE,
+  username    text NOT NULL,
+  followed_at timestamptz,            -- 書き出しに含まれるフォロー開始日時（無ければ null）
+  PRIMARY KEY (list_id, username)
+);
+ALTER TABLE follower_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE follower_list_members ENABLE ROW LEVEL SECURITY;

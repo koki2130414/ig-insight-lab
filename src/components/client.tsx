@@ -24,6 +24,7 @@ const NAV = [
   { href: "/", label: "ダッシュボード" },
   { href: "/posts", label: "投稿と比較" },
   { href: "/import", label: "取り込み" },
+  { href: "/followers", label: "フォロワー増減" },
   { href: "/audience", label: "オーディエンス" },
   { href: "/targets", label: "ターゲット" },
   { href: "/initiatives/new", label: "施策をつくる" },
