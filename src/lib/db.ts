@@ -40,7 +40,18 @@ async function createPglite(dataDir: string): Promise<Db> {
 
 async function createPg(url: string): Promise<Db> {
   const { Pool } = await import("pg");
-  const pool = new Pool({ connectionString: url, max: 5 });
+  // Supabase の接続プーラーは独自CAの証明書のため、ローカル以外は TLS を使い証明書検証は行わない
+  const u = new URL(url);
+  const local = ["localhost", "127.0.0.1", "::1"].includes(u.hostname);
+  u.searchParams.delete("sslmode");
+  const pool = new Pool({
+    connectionString: u.toString(),
+    max: process.env.VERCEL ? 2 : 5,
+    ssl: local || process.env.DATABASE_SSL === "disable" ? undefined : { rejectUnauthorized: false },
+  });
+  // 共用の Supabase プロジェクトでも他アプリと混ざらないよう、専用スキーマを使う（DB_SCHEMA）
+  const schema = dbSchema();
+  if (schema !== "public") pool.on("connect", (client) => void client.query(`SET search_path TO "${schema}"`));
   const db: Db = {
     async query<T>(sql: string, params: unknown[] = []) {
       const r = await pool.query(sql, params.map(normalizeParam));
@@ -81,10 +92,21 @@ export function schemaSql() {
   return fs.readFileSync(path.join(process.cwd(), "db", "schema.sql"), "utf8");
 }
 
+/** 使用するスキーマ名（英小文字・数字・_ のみ） */
+export function dbSchema() {
+  const s = process.env.DB_SCHEMA || "public";
+  if (!/^[a-z_][a-z0-9_]{0,40}$/.test(s)) throw new Error("DB_SCHEMA は英小文字・数字・_ で指定してください");
+  return s;
+}
+
 export async function getDb(): Promise<Db> {
   const h = g.__igdb!;
   if (!h.db) {
     h.db = (async () => {
+      if (process.env.VERCEL && !process.env.DATABASE_URL) {
+        // Vercel ではファイルが保存されないため、組み込みDBは使わない
+        throw new Error("DATABASE_URL が未設定です（Vercel では Supabase などの PostgreSQL が必要です）");
+      }
       const db = process.env.DATABASE_URL
         ? await createPg(process.env.DATABASE_URL)
         : await createPglite(process.env.PGLITE_DIR || path.join(process.cwd(), ".data", "pglite"));
@@ -106,9 +128,23 @@ export async function createTestDb(): Promise<Db> {
 }
 
 async function bootstrap(db: Db) {
-  // PGlite は複数ステートメントを exec で流す必要があるため ; で分割
-  for (const stmt of splitSql(schemaSql())) await db.query(stmt);
   const { ensureSeed } = await import("./seed");
+  if (process.env.DATABASE_URL) {
+    // 複数のサーバーが同時に起動しても初期化が重ならないよう、トランザクション内でアドバイザリロックを取る
+    await db.transaction(async (tx) => {
+      const schema = dbSchema();
+      await tx.query("SELECT pg_advisory_xact_lock(213213)");
+      if (schema !== "public") {
+        await tx.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+        await tx.query(`SET LOCAL search_path TO "${schema}", public`);
+      }
+      for (const stmt of splitSql(schemaSql())) await tx.query(stmt);
+      await ensureSeed(tx);
+    });
+    return;
+  }
+  // PGlite は ; で分割して1文ずつ流す
+  for (const stmt of splitSql(schemaSql())) await db.query(stmt);
   await ensureSeed(db);
 }
 

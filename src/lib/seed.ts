@@ -15,9 +15,10 @@ export async function ensureSeed(db: Db) {
       if (existing.length) continue;
       const [acc] = await db.query<{ id: string }>(
         `INSERT INTO accounts(user_id,dataset,kind,handle,display_name,roles,follower_target,weekly_minutes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (user_id,dataset,kind) DO NOTHING RETURNING id`,
         [LOCAL_USER, dataset, kind, HANDLES[kind], NAMES[kind], DEFAULT_ROLES[kind], kind === "farm" ? 10000 : null, kind === "farm" ? 240 : 180],
       );
+      if (!acc) continue;
       for (const t of DEFAULT_TARGETS[kind]) {
         await db.query(
           `INSERT INTO targets(account_id,layer,name,needs,value_prop,themes,desired_action,monetization,priority,validation_method,is_hypothesis)

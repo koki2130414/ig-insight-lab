@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   poweredByHeader: false,
+  // 起動時に読むスキーマファイルをサーバーの配布物に含める（Vercel 用）
+  outputFileTracingIncludes: { "/**": ["./db/schema.sql"] },
   experimental: {
     // 取り込みは画面側で2MB・5000行に制限。パース後のJSONが収まるよう余裕を持たせる
     serverActions: { bodySizeLimit: "4mb" },

@@ -31,7 +31,17 @@ npm run dev                  # http://localhost:3000
 | `npm test` | 指標計算・取り込み・重複防止・データ分離・API同期（モック）のテスト |
 | `npm run lint` | ESLint |
 
-### Supabase を使う場合
+### Vercel ＋ Supabase で公開する場合
+1. Supabase の「にいみ農園」組織の niimi-farm プロジェクトに、専用スキーマ `ig_insight_lab` を作成済み（全テーブルで RLS 有効・anon/authenticated の権限なし。外部 API からは読めません）。
+2. Vercel でこのリポジトリをインポートし、環境変数を設定:
+   - `DATABASE_URL`: Supabase の Connect → **Session pooler** の接続文字列（`[YOUR-PASSWORD]` をDBパスワードに置き換え）
+   - `DB_SCHEMA`: `ig_insight_lab`
+   - `APP_PASSCODE`: ログイン用パスコード（必須。未設定だと表示しません）
+   - `SESSION_SECRET`: `openssl rand -hex 32` で作成
+   - API接続を使う場合: `META_APP_ID` `META_APP_SECRET` `META_REDIRECT_URI`（`https://<VercelのURL>/api/oauth/instagram/callback`）`TOKEN_ENCRYPTION_KEY`
+3. デプロイ後、URLを開いてパスコードでログイン。
+
+### Supabase を使う場合（ローカル）
 1. Supabase でプロジェクトを作成し、接続文字列（Session pooler 推奨）を `DATABASE_URL` に設定します。
 2. 起動すると `db/schema.sql` が自動で適用されます。SQL エディタで手動適用することもできます。
 3. ネット上に公開するときは、`APP_PASSCODE` を必ず設定してください。
