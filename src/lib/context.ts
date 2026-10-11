@@ -47,10 +47,6 @@ function normalizePasscode(s: string) {
   return s.normalize("NFKC").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
 }
 
-/** ログイン失敗時の手がかり（値そのものは出さず、文字数だけ） */
-export function passcodeHint(input: string) {
-  return { expected: normalizePasscode(process.env.APP_PASSCODE || "").length, given: normalizePasscode(input).length };
-}
 
 export function checkPasscode(input: string) {
   const expected = normalizePasscode(process.env.APP_PASSCODE || "");
