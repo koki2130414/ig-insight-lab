@@ -47,13 +47,19 @@ async function createPg(url: string): Promise<Db> {
   u.searchParams.delete("sslmode");
   const pool = new Pool({
     connectionString: u.toString(),
-    max: process.env.VERCEL ? 3 : 5,
-    idleTimeoutMillis: 60_000,
+    // Supabase のセッションプーラーは同時接続15まで。関数インスタンスが増えても溢れないよう少なく保つ
+    max: process.env.VERCEL ? 2 : 5,
+    idleTimeoutMillis: process.env.VERCEL ? 5_000 : 60_000,
     ssl: local || process.env.DATABASE_SSL === "disable" ? undefined : { rejectUnauthorized: false },
   });
   // 共用の Supabase プロジェクトでも他アプリと混ざらないよう、専用スキーマを使う（DB_SCHEMA）
   const schema = dbSchema();
   if (schema !== "public") pool.on("connect", (client) => void client.query(`SET search_path TO "${schema}"`));
+  if (process.env.VERCEL) {
+    // 関数が休止する前に使っていない接続を閉じる（接続の取り残しで上限に達するのを防ぐ）
+    const { attachDatabasePool } = await import("@vercel/functions");
+    attachDatabasePool(pool);
+  }
   const db: Db = {
     async query<T>(sql: string, params: unknown[] = []) {
       const r = await pool.query(sql, params.map(normalizeParam));
