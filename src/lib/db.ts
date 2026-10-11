@@ -135,7 +135,9 @@ async function bootstrap(db: Db) {
       const schema = dbSchema();
       await tx.query("SELECT pg_advisory_xact_lock(213213)");
       if (schema !== "public") {
-        await tx.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+        // 既にあるときは作らない（専用ユーザーにはデータベース全体への作成権限が無いため）
+        const exists = await tx.query(`SELECT 1 FROM pg_namespace WHERE nspname = $1`, [schema]);
+        if (!exists.length) await tx.query(`CREATE SCHEMA "${schema}"`);
         await tx.query(`SET LOCAL search_path TO "${schema}", public`);
       }
       for (const stmt of splitSql(schemaSql())) await tx.query(stmt);
