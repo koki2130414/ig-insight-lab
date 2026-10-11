@@ -43,7 +43,13 @@ export function authEnabled() {
 
 /** 全角英数字・前後の空白の違いで弾かれないよう正規化してから比較する */
 function normalizePasscode(s: string) {
-  return s.normalize("NFKC").trim();
+  // 全角→半角、前後の空白、設定時に誤って付けた引用符（"xxx" や 'xxx'）を取り除く
+  return s.normalize("NFKC").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+}
+
+/** ログイン失敗時の手がかり（値そのものは出さず、文字数だけ） */
+export function passcodeHint(input: string) {
+  return { expected: normalizePasscode(process.env.APP_PASSCODE || "").length, given: normalizePasscode(input).length };
 }
 
 export function checkPasscode(input: string) {

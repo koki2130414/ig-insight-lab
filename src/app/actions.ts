@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
-  authEnabled, checkPasscode, getContext, newSessionToken, requireAccount, requireOwned, type Ctx,
+  authEnabled, checkPasscode, passcodeHint, getContext, newSessionToken, requireAccount, requireOwned, type Ctx,
 } from "@/lib/context";
 import { ACCOUNT_METRICS, CHECKPOINTS, FORMATS, PURPOSES, STATUSES, DECISIONS, TEST_VARIABLES, CONVERSION_KINDS, ATTRIBUTIONS, COST_CATEGORIES, INTEREST_CATEGORIES, CATEGORY_KEYWORDS, type Checkpoint, type Purpose } from "@/lib/catalog";
 import { parseBool, parseDateTime, parseDay, parseEnum, parseNumber, parseText, parseUrl } from "@/lib/parse";
@@ -75,7 +75,11 @@ export async function setView(fd: FormData) {
 
 export async function login(fd: FormData) {
   if (!authEnabled()) redirect("/");
-  if (!checkPasscode(get(fd, "passcode") ?? "")) redirect("/login?err=1");
+  const input = get(fd, "passcode") ?? "";
+  if (!checkPasscode(input)) {
+    const h = passcodeHint(input);
+    redirect(`/login?err=1&e=${h.expected}&g=${h.given}`);
+  }
   const c = await cookies();
   c.set("iil_session", newSessionToken(), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 * 30 });
   redirect("/");
